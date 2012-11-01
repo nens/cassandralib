@@ -99,8 +99,8 @@ class CassandraDataStore:
                 for col_name in chunk:
                     bits = col_name.split(COLNAME_SEPERATOR)
                     if (len(bits) > 1):
-                        dt = bits[0]
-                        key = col_name[len(dt) + 1:]
+                        dt = datetime.strptime(bits[0], COLNAME_FORMAT)
+                        key = col_name[len(bits[0]) + 1:]
                         if (key in params) or (len(params) == 0):
                             if not dt in datetimes.keys():
                                 datetimes[dt] = {}
