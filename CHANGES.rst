@@ -2,7 +2,7 @@ Changelog of cassandralib
 ===================================================
 
 
-0.3 (unreleased)
+0.3 (2012-11-16)
 ----------------
 
 - Nothing changed yet.
