@@ -56,14 +56,27 @@ def bucket_start(timestamp, bucketformat):
 
 class CassandraDataStore:
 
-    def __init__(self, nodes, keyspace, column_family, queue_size):
-        pool = pycassa.ConnectionPool(
+    def __init__(self, nodes, keyspace, queue_size):
+        self.pool = pycassa.ConnectionPool(
             keyspace=keyspace, server_list=nodes, prefill=False
         )
-        self.cf = pycassa.ColumnFamily(pool, column_family)
-        self.batch = self.cf.batch(queue_size=queue_size)
+        self.queue_size = queue_size
+        self.column_families = {}
+        self.batches = {}
 
-    def read(self, sensor_id, start, end, params=[]):
+    def _get_column_family(self, column_family):
+        if column_family not in self.column_families:
+            self.column_families[column_family] = \
+                pycassa.ColumnFamily(self.pool, column_family)
+        return self.column_families[column_family]
+
+    def _get_batch(self, column_family):
+        cf = self._get_column_family(column_family)
+        if column_family not in self.batches:
+            self.batches[column_family] = cf.batch(queue_size=self.queue_size)
+        return self.batches[column_family]
+
+    def read(self, column_family, sensor_id, start, end, params=[]):
         assert start.tzinfo is not None, \
             "Start datetime must be timezone aware"
         assert end.tzinfo is not None, \
@@ -98,7 +111,7 @@ class CassandraDataStore:
         print "Get " + repr(rowkeys) + " with filter " + \
             col_start + " " + col_end
         try:
-            result = self.cf.multiget(
+            result = self._get_column_family(column_family).multiget(
                 rowkeys, column_start=col_start, column_finish=col_end
             )
             for rowkey in result:
@@ -127,18 +140,20 @@ class CassandraDataStore:
         # And create the Pandas DataFrame.
         return pd.DataFrame(data=data, index=sorted(datetimes))
 
-    def write_frame(self, sensor_id, df):
+    def write_frame(self, column_family, sensor_id, df):
         for timestamp, row in df.iterrows():
-            self.write_row(sensor_id, timestamp, row.to_dict())
+            self.write_row(column_family, sensor_id, timestamp, row.to_dict())
 
-    def write_row(self, sensor_id, timestamp, row):
+    def write_row(self, column_family, sensor_id, timestamp, row):
         ts_int = timestamp.astimezone(INTERNAL_TIMEZONE)
         key = ts_int.strftime(sensor_id + ':' + bucket_format(sensor_id))
         stamp = ts_int.strftime(COLNAME_FORMAT)
-        self.batch.insert(key, dict(
+        self._get_batch(column_family).insert(key, dict(
             ("%s%s%s" % (stamp, COLNAME_SEPERATOR, k), str(v))
             for k, v in row.iteritems()
         ))
 
     def flush(self):
-        self.batch.send()
+        for column_family in self.batches.keys():
+            self.batches[column_family].send()
+            del self.batches[column_family]
