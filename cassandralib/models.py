@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-from pycassa.cassandra.ttypes import NotFoundException 
+from pycassa.cassandra.ttypes import NotFoundException
 import pandas as pd
 import pycassa
 import pytz
@@ -26,44 +26,55 @@ def bucket_format(sensor_id):
 
 def bucket_delta(bucketformat):
     if (bucketformat == BucketFormat.HOURLY):
-        return relativedelta( hours = +1 )
+        return relativedelta(hours=+1)
     if (bucketformat == BucketFormat.DAILY):
-        return relativedelta( days = +1 )
+        return relativedelta(days=+1)
     if (bucketformat == BucketFormat.MONTHLY):
-        return relativedelta( months = +1 )
+        return relativedelta(months=+1)
     if (bucketformat == BucketFormat.YEARLY):
-        return relativedelta( years = +1 )
+        return relativedelta(years=+1)
 
 
 def bucket_start(timestamp, bucketformat):
     if (bucketformat == BucketFormat.HOURLY):
-        return timestamp.replace(minute=0, second=0, microsecond=0)
+        return timestamp.replace(
+            minute=0, second=0, microsecond=0
+        )
     if (bucketformat == BucketFormat.DAILY):
-        return timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        return timestamp.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     if (bucketformat == BucketFormat.MONTHLY):
-        return timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        return timestamp.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
     if (bucketformat == BucketFormat.YEARLY):
-        return timestamp.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return timestamp.replace(
+            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
 
 
 class CassandraDataStore:
 
     def __init__(self, nodes, keyspace, column_family, queue_size):
-        pool = pycassa.ConnectionPool(keyspace=keyspace, server_list=nodes,
-            prefill=False)
+        pool = pycassa.ConnectionPool(
+            keyspace=keyspace, server_list=nodes, prefill=False
+        )
         self.cf = pycassa.ColumnFamily(pool, column_family)
         self.batch = self.cf.batch(queue_size=queue_size)
 
     def read(self, sensor_id, start, end, params=[]):
-        assert start.tzinfo != None, "Start datetime must be timezone aware"
-        assert end.tzinfo != None, "End datetime must be timezone aware"
+        assert start.tzinfo is not None, \
+            "Start datetime must be timezone aware"
+        assert end.tzinfo is not None, \
+            "End datetime must be timezone aware"
         assert str(start.tzinfo.utcoffset(start))[1:] == ':00:00' or \
             str(start.tzinfo.utcoffset(start))[1:] == ':30:00', \
             "Start datetime has weird utc offset; use tz.localize"
         assert str(end.tzinfo.utcoffset(end))[1:] == ':00:00' or \
             str(end.tzinfo.utcoffset(end))[1:] == ':30:00', \
             "End datetime has weird utc offset; use tz.localize"
-        
+
         # The bucket format defines how much data is on one Cassandra row.
         format = bucket_format(sensor_id)
 
@@ -71,7 +82,8 @@ class CassandraDataStore:
         stamp = bucket_start(start.astimezone(INTERNAL_TIMEZONE), format)
         delta = bucket_delta(format)
 
-        col_start = start.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT)
+        col_start = start.astimezone(INTERNAL_TIMEZONE) \
+            .strftime(COLNAME_FORMAT)
         col_end = end.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT)
 
         datetimes = {}
@@ -86,8 +98,9 @@ class CassandraDataStore:
         print "Get " + repr(rowkeys) + " with filter " + \
             col_start + " " + col_end
         try:
-            result = self.cf.multiget(rowkeys,
-                column_start=col_start, column_finish=col_end)
+            result = self.cf.multiget(
+                rowkeys, column_start=col_start, column_finish=col_end
+            )
             for rowkey in result:
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
