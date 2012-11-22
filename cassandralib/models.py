@@ -54,27 +54,27 @@ def bucket_start(timestamp, bucketformat):
         )
 
 
-class CassandraDataStore:
+class CassandraDataStore(object):
+    _column_families = {}
+    _batches = {}
 
     def __init__(self, nodes, keyspace, queue_size):
         self.pool = pycassa.ConnectionPool(
             keyspace=keyspace, server_list=nodes, prefill=False
         )
         self.queue_size = queue_size
-        self.column_families = {}
-        self.batches = {}
 
     def _get_column_family(self, column_family):
-        if column_family not in self.column_families:
-            self.column_families[column_family] = \
+        if column_family not in self._column_families:
+            self._column_families[column_family] = \
                 pycassa.ColumnFamily(self.pool, column_family)
-        return self.column_families[column_family]
+        return self._column_families[column_family]
 
     def _get_batch(self, column_family):
-        cf = self._get_column_family(column_family)
-        if column_family not in self.batches:
-            self.batches[column_family] = cf.batch(queue_size=self.queue_size)
-        return self.batches[column_family]
+        if column_family not in self._batches:
+            cf = self._get_column_family(column_family)
+            self._batches[column_family] = cf.batch(queue_size=self.queue_size)
+        return self._batches[column_family]
 
     def read(self, column_family, sensor_id, start, end, params=[]):
         assert start.tzinfo is not None, \
@@ -153,7 +153,7 @@ class CassandraDataStore:
             for k, v in row.iteritems()
         ))
 
-    def flush(self):
-        for column_family in self.batches.keys():
-            self.batches[column_family].send()
-            del self.batches[column_family]
+    def commit(self):
+        for column_family in self._batches.keys():
+            self._batches[column_family].send()
+            del self._batches[column_family]
