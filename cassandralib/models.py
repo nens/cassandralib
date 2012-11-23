@@ -140,10 +140,6 @@ class CassandraDataStore(object):
         # And create the Pandas DataFrame.
         return pd.DataFrame(data=data, index=sorted(datetimes))
 
-    def write_frame(self, column_family, sensor_id, df):
-        for timestamp, row in df.iterrows():
-            self.write_row(column_family, sensor_id, timestamp, row.to_dict())
-
     def write_row(self, column_family, sensor_id, timestamp, row):
         ts_int = timestamp.astimezone(INTERNAL_TIMEZONE)
         key = ts_int.strftime(sensor_id + ':' + bucket_format(sensor_id))
@@ -156,7 +152,7 @@ class CassandraDataStore(object):
     def truncate(self, column_family):
         self._get_column_family(column_family).truncate()
 
-    def commit(self):
-        for column_family in self._batches.keys():
+    def commit(self, column_family):
+        if column_family in self._batches.keys():
             self._batches[column_family].send()
             del self._batches[column_family]
