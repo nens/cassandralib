@@ -153,6 +153,9 @@ class CassandraDataStore(object):
             for k, v in row.iteritems()
         ))
 
+    def truncate(self, column_family):
+        self._get_column_family(column_family).truncate()
+
     def commit(self):
         for column_family in self._batches.keys():
             self._batches[column_family].send()
