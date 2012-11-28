@@ -128,8 +128,6 @@ class CassandraDataStore(object):
                                 data[key] = []
         except NotFoundException:
             pass
-        except Exception as ex:
-            print repr(ex)
         # Now, reform the data by series.
         for dt in sorted(datetimes):
             for key in data:
