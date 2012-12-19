@@ -60,7 +60,7 @@ class CassandraDataStore(object):
 
     def __init__(self, nodes, keyspace, queue_size):
         self.pool = pycassa.ConnectionPool(
-            keyspace=keyspace, server_list=nodes, prefill=False
+            keyspace=keyspace, server_list=nodes, prefill=False, max_overflow=0
         )
         self.queue_size = queue_size
 
