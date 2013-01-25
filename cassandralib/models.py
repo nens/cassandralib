@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from pycassa.cassandra.ttypes import NotFoundException
+
 import pandas as pd
 import pycassa
 import pytz
@@ -11,6 +12,7 @@ import pytz
 INTERNAL_TIMEZONE = pytz.UTC
 COLNAME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 COLNAME_SEPERATOR = '_'
+MAX_COLUMNS = 2147483647
 
 
 class BucketFormat:
@@ -108,11 +110,17 @@ class CassandraDataStore(object):
         while stamp < end:
             rowkeys.append(stamp.strftime(key_format))
             stamp += delta
+        # If no Cassandra rows are in requested date range, return nothing.
+        if len(rowkeys) == 0:
+            return pd.DataFrame(data=data, index=datetimes)
         print "Get " + repr(rowkeys) + " with filter " + \
             col_start + " " + col_end
         try:
             result = self._get_column_family(column_family).multiget(
-                rowkeys, column_start=col_start, column_finish=col_end
+                rowkeys,
+                column_start=col_start,
+                column_finish=col_end,
+                column_count=MAX_COLUMNS
             )
             for rowkey in result:
                 for col_name in result[rowkey]:
