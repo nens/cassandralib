@@ -5,6 +5,7 @@ from datetime import datetime
 from pycassa.cassandra.ttypes import NotFoundException
 
 import pandas as pd
+import numpy as np
 import pycassa
 import pytz
 
@@ -78,7 +79,7 @@ class CassandraDataStore(object):
             self._batches[column_family] = cf.batch(queue_size=self.queue_size)
         return self._batches[column_family]
 
-    def read(self, column_family, sensor_id, start, end, params=[]):
+    def read(self, column_family, sensor_id, start, end, params=[], convert_values_to=None):
         assert start.tzinfo is not None, \
             "Start datetime must be timezone aware"
         assert end.tzinfo is not None, \
@@ -101,7 +102,6 @@ class CassandraDataStore(object):
             .strftime(COLNAME_FORMAT)
         col_end = end.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT)
 
-        datetimes = {}
         data = {}
 
         # From each bucket within in the specified range, get the columns
@@ -112,7 +112,7 @@ class CassandraDataStore(object):
             stamp += delta
         # If no Cassandra rows are in requested date range, return nothing.
         if len(rowkeys) == 0:
-            return pd.DataFrame(data=data, index=datetimes)
+            return pd.DataFrame()
         print "Get " + repr(rowkeys) + " with filter " + \
             col_start + " " + col_end
         try:
@@ -122,29 +122,46 @@ class CassandraDataStore(object):
                 column_finish=col_end,
                 column_count=MAX_COLUMNS
             )
+            keys = []
             for rowkey in result:
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
                     if (len(bits) > 1):
                         dt = datetime.strptime(bits[0], COLNAME_FORMAT)
                         key = col_name[len(bits[0]) + 1:]
-                        if (key in params) or (len(params) == 0):
-                            if not dt in datetimes.keys():
-                                datetimes[dt] = {}
-                            datetimes[dt][key] = result[rowkey][col_name]
-                            if not key in data.keys():
-                                data[key] = []
+                        if not params or key in params:
+                            if key not in keys:
+                                keys.append(key)
+                            if not dt in data.keys():
+                                data[dt] = {}
+                            data[dt][key] = result[rowkey][col_name]
         except NotFoundException:
             pass
-        # Now, reform the data by series.
-        for dt in sorted(datetimes):
-            for key in data:
-                if key in datetimes[dt]:
-                    data[key].append(datetimes[dt][key])
-                else:
-                    data[key].append(None)
+
+        # Flatten the dataset by key.
+        # Missing values are converted to None.
+        datetimes = sorted(data.keys())
+        data_flat = {key: [] for key in keys}
+        for dt in datetimes:
+            row = data[dt]
+            for key in keys:
+                value = row.get(key)
+                data_flat[key].append(value)
+
+        # Convert values to an appropriate Numpy array type, if requested.
+        # Unknown types are kept in their current (Cassandra) form.
+        if convert_values_to is not None and 'value' in data_flat:
+            dtype_map = {
+                'float': np.float32,
+                'integer': np.int32
+            }
+            dtype = dtype_map.get(convert_values_to)
+            if dtype is not None:
+                data_flat['value'] = np.array(data_flat['value'], dtype=dtype)
+
         # And create the Pandas DataFrame.
-        return pd.DataFrame(data=data, index=sorted(datetimes))
+        result = pd.DataFrame(data=data_flat, index=sorted(datetimes))
+        return result
 
     def write_row(self, column_family, sensor_id, timestamp, row):
         ts_int = timestamp.astimezone(INTERNAL_TIMEZONE)
