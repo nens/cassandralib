@@ -113,7 +113,6 @@ class CassandraDataStore(object):
         # If no Cassandra rows are in requested date range, return nothing.
         if len(rowkeys) == 0:
             return pd.DataFrame()
-        print "Get " + repr(rowkeys) + " with filter " + \
             col_start + " " + col_end
         try:
             result = self._get_column_family(column_family).multiget(
