@@ -79,7 +79,8 @@ class CassandraDataStore(object):
             self._batches[column_family] = cf.batch(queue_size=self.queue_size)
         return self._batches[column_family]
 
-    def read(self, column_family, sensor_id, start, end, params=[], convert_values_to=None):
+    def read(self, column_family, sensor_id, start, end, params=[],
+        convert_values_to=None):
         assert start.tzinfo is not None, \
             "Start datetime must be timezone aware"
         assert end.tzinfo is not None, \
@@ -159,7 +160,8 @@ class CassandraDataStore(object):
                 data_flat['value'] = np.array(data_flat['value'], dtype=dtype)
 
         # And create the Pandas DataFrame.
-        result = pd.DataFrame(data=data_flat, index=sorted(datetimes))
+        result = pd.DataFrame(data=data_flat, index=datetimes)
+        result.tz_localize(INTERNAL_TIMEZONE, copy=False)
         return result
 
     def write_row(self, column_family, sensor_id, timestamp, row):
