@@ -91,6 +91,9 @@ class CassandraDataStore(object):
             str(end.tzinfo.utcoffset(end))[1:] == ':30:00', \
             "End datetime has weird utc offset; use tz.localize"
 
+        if start is None or end is None:
+            return pd.DataFrame()
+
         # The bucket format defines how much data is on one Cassandra row.
         format = bucket_format(sensor_id)
 
