@@ -80,17 +80,19 @@ class CassandraDataStore(object):
         return self._batches[column_family]
 
     def read(self, column_family, sensor_id, start, end, params=[],
-        convert_values_to=None):
-        assert start.tzinfo is not None, \
-            "Start datetime must be timezone aware"
-        assert end.tzinfo is not None, \
-            "End datetime must be timezone aware"
-        assert str(start.tzinfo.utcoffset(start))[1:] == ':00:00' or \
-            str(start.tzinfo.utcoffset(start))[1:] == ':30:00', \
-            "Start datetime has weird utc offset; use tz.localize"
-        assert str(end.tzinfo.utcoffset(end))[1:] == ':00:00' or \
-            str(end.tzinfo.utcoffset(end))[1:] == ':30:00', \
-            "End datetime has weird utc offset; use tz.localize"
+             convert_values_to=None):
+        if start:
+            assert start.tzinfo is not None, \
+                "Start datetime must be timezone aware"
+            assert str(start.tzinfo.utcoffset(start))[1:] == ':00:00' or \
+                str(start.tzinfo.utcoffset(start))[1:] == ':30:00', \
+                "Start datetime has weird utc offset; use tz.localize"
+        if end:
+            assert end.tzinfo is not None, \
+                "End datetime must be timezone aware"
+            assert str(end.tzinfo.utcoffset(end))[1:] == ':00:00' or \
+                str(end.tzinfo.utcoffset(end))[1:] == ':30:00', \
+                "End datetime has weird utc offset; use tz.localize"
 
         if start is None or end is None:
             return pd.DataFrame()
