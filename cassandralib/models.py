@@ -12,6 +12,7 @@ import pytz
 
 INTERNAL_TIMEZONE = pytz.UTC
 COLNAME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+COLNAME_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%fZ'
 COLNAME_SEPERATOR = '_'
 MAX_COLUMNS = 2147483647
 
@@ -104,22 +105,23 @@ class CassandraDataStore(object):
         stamp = bucket_start(start.astimezone(INTERNAL_TIMEZONE), format)
         delta = bucket_delta(format)
 
-        col_start = start.astimezone(INTERNAL_TIMEZONE) \
-            .strftime(COLNAME_FORMAT)
-        col_end = end.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT)
-
-        data = {}
-
         # From each bucket within in the specified range, get the columns
         # within the specified range.
         rowkeys = []
         while stamp < end:
             rowkeys.append(stamp.strftime(key_format))
             stamp += delta
+
         # If no Cassandra rows are in requested date range, return nothing.
         if len(rowkeys) == 0:
             return pd.DataFrame()
-            col_start + " " + col_end
+
+        col_start = start.astimezone(INTERNAL_TIMEZONE) \
+            .strftime(COLNAME_FORMAT_MS)
+        col_end = end.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT_MS)
+
+        data = {}
+
         try:
             result = self._get_column_family(column_family).multiget(
                 rowkeys,
@@ -132,7 +134,10 @@ class CassandraDataStore(object):
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
                     if (len(bits) > 1):
-                        dt = datetime.strptime(bits[0], COLNAME_FORMAT)
+                        try:
+                            dt = datetime.strptime(bits[0], COLNAME_FORMAT)
+                        except ValueError:
+                            dt = datetime.strptime(bits[0], COLNAME_FORMAT_MS)
                         key = col_name[len(bits[0]) + 1:]
                         if not params or key in params:
                             if key not in keys:
@@ -166,13 +171,14 @@ class CassandraDataStore(object):
 
         # And create the Pandas DataFrame.
         result = pd.DataFrame(data=data_flat, index=datetimes)
-        result.tz_localize(INTERNAL_TIMEZONE, copy=False)
+        if len(datetimes) > 0:
+            result.tz_localize(INTERNAL_TIMEZONE, copy=False)
         return result
 
     def write_row(self, column_family, sensor_id, timestamp, row):
         ts_int = timestamp.astimezone(INTERNAL_TIMEZONE)
         key = ts_int.strftime(sensor_id + ':' + bucket_format(sensor_id))
-        stamp = ts_int.strftime(COLNAME_FORMAT)
+        stamp = ts_int.strftime(COLNAME_FORMAT_MS)
         self._get_batch(column_family).insert(key, dict(
             ("%s%s%s" % (stamp, COLNAME_SEPERATOR, k), str(v))
             for k, v in row.iteritems()
