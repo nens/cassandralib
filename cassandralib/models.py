@@ -68,7 +68,7 @@ class CassandraDataStore(object):
         )
         self.queue_size = queue_size
         self.read_consistency_level = pycassa.ConsistencyLevel.ONE
-        self.write_consistency_level = pycassa.ConsistencyLevel.LOCAL_QUORUM
+        self.write_consistency_level = pycassa.ConsistencyLevel.QUORUM
 
     def _get_column_family(self, column_family):
         if column_family not in self._column_families:
