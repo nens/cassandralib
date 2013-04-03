@@ -67,11 +67,15 @@ class CassandraDataStore(object):
             keyspace=keyspace, server_list=nodes, prefill=False, max_overflow=0
         )
         self.queue_size = queue_size
+        self.read_consistency_level = pycassa.ConsistencyLevel.ONE
+        self.write_consistency_level = pycassa.ConsistencyLevel.LOCAL_QUORUM
 
     def _get_column_family(self, column_family):
         if column_family not in self._column_families:
             self._column_families[column_family] = \
-                pycassa.ColumnFamily(self.pool, column_family)
+                pycassa.ColumnFamily(self.pool, column_family, \
+                    write_consistency_level=self.write_consistency_level, \
+                    read_consistency_level=self.read_consistency_level)
         return self._column_families[column_family]
 
     def _get_batch(self, column_family):
@@ -121,6 +125,7 @@ class CassandraDataStore(object):
         col_end = end.astimezone(INTERNAL_TIMEZONE).strftime(COLNAME_FORMAT_MS)
 
         data = {}
+        keys = []
 
         try:
             result = self._get_column_family(column_family).multiget(
@@ -129,7 +134,6 @@ class CassandraDataStore(object):
                 column_finish=col_end,
                 column_count=MAX_COLUMNS
             )
-            keys = []
             for rowkey in result:
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
