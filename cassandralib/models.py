@@ -171,7 +171,13 @@ class CassandraDataStore(object):
             }
             dtype = dtype_map.get(convert_values_to)
             if dtype is not None:
-                data_flat['value'] = np.genfromtxt(data_flat['value'], dtype=dtype)
+                # There's a bug in numpy.genfromtxt causing a list of length 1
+                # to produce a 0-dim array. Appending and removing a dummy
+                # value resolves this.
+                length = len(data_flat['value'])
+                data_flat['value'].append('dummy')
+                data_flat['value'] = \
+                    np.genfromtxt(data_flat['value'], dtype=dtype)[:length]
 
         # And create the Pandas DataFrame.
         result = pd.DataFrame(data=data_flat, index=datetimes)
