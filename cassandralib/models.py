@@ -128,12 +128,14 @@ class CassandraDataStore(object):
         keys = []
 
         try:
+            timer_start = datetime.now()
             result = self._get_column_family(column_family).multiget(
                 rowkeys,
                 column_start=col_start,
                 column_finish=col_end,
                 column_count=MAX_COLUMNS
             )
+            logger.debug("multiget in %s", datetime.now() - timer_start)
             for rowkey in result:
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
@@ -154,6 +156,7 @@ class CassandraDataStore(object):
 
         # Flatten the dataset by key.
         # Missing values are converted to None.
+        timer_start = datetime.now()
         datetimes = sorted(data.keys())
         data_flat = {key: [] for key in keys}
         for dt in datetimes:
@@ -161,9 +164,11 @@ class CassandraDataStore(object):
             for key in keys:
                 value = row.get(key)
                 data_flat[key].append(value)
+        logger.debug("flattened in %s", datetime.now() - timer_start)
 
         # Convert values to an appropriate Numpy array type, if requested.
         # Unknown types are kept in their current (Cassandra) form.
+        timer_start = datetime.now()
         if convert_values_to is not None and 'value' in data_flat:
             dtype_map = {
                 'float': np.float32,
@@ -178,9 +183,12 @@ class CassandraDataStore(object):
                 data_flat['value'].append('dummy')
                 data_flat['value'] = \
                     np.genfromtxt(data_flat['value'], dtype=dtype)[:length]
+        logger.debug("converted in %s", datetime.now() - timer_start)
 
         # And create the Pandas DataFrame.
+        timer_start = datetime.now()
         result = pd.DataFrame(data=data_flat, index=datetimes)
+        logger.debug("pandafied in %s", datetime.now() - timer_start)
         if len(datetimes) > 0:
             result.tz_localize(INTERNAL_TIMEZONE, copy=False)
         return result
