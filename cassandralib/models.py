@@ -16,6 +16,8 @@ COLNAME_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%fZ'
 COLNAME_SEPERATOR = '_'
 MAX_COLUMNS = 2147483647
 
+logger = logging.getLogger(__name__)
+
 
 class BucketFormat:
     HOURLY = '%Y-%m-%dT%H'
