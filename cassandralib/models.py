@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from pycassa.cassandra.ttypes import NotFoundException
 
+import logging
 import pandas as pd
 import numpy as np
 import pycassa
