@@ -60,6 +60,14 @@ def bucket_start(timestamp, bucketformat):
             month=1, day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
+def strptime(dt):
+    # datetime.strptime is slow. This low level alternative performs better.
+    if len(dt) > 26:
+        return datetime(int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
+            int(dt[11:13]), int(dt[14:16]), int(dt[17:19]), int(dt[20:26]))
+    return datetime(int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
+        int(dt[11:13]), int(dt[14:16]), int(dt[17:19]))
+
 
 class CassandraDataStore(object):
     _column_families = {}
@@ -138,22 +146,19 @@ class CassandraDataStore(object):
                 column_finish=col_end,
                 column_count=MAX_COLUMNS
             )
-            logger.debug("multiget in %s", datetime.now() - timer_start)
             for rowkey in result:
                 for col_name in result[rowkey]:
                     bits = col_name.split(COLNAME_SEPERATOR)
                     if (len(bits) > 1):
-                        try:
-                            dt = datetime.strptime(bits[0], COLNAME_FORMAT)
-                        except ValueError:
-                            dt = datetime.strptime(bits[0], COLNAME_FORMAT_MS)
+                        dt = strptime(bits[0])
                         key = col_name[len(bits[0]) + 1:]
                         if not params or key in params:
                             if key not in keys:
                                 keys.append(key)
-                            if not dt in data.keys():
+                            if not dt in data:
                                 data[dt] = {}
                             data[dt][key] = result[rowkey][col_name]
+            logger.debug("multiget in %s", datetime.now() - timer_start)
         except NotFoundException:
             pass
 
