@@ -166,14 +166,20 @@ class CassandraDataStore(object):
         # Missing values are converted to None.
         timer_start = datetime.now()
         datetimes = sorted(data.keys())
+        notrejected = datetimes
         data_flat = {key: [] for key in keys}
         for dt in datetimes:
             row = data[dt]
-            for key in keys:
-                value = row.get(key)
-                if ignore_rejected and key == 'flag' and value == 6:
-                    logger.debug('flagging')
-                data_flat[key].append(value)
+            flag = row.get("flag")
+            if ignore_rejected and flag == "6":
+                notrejected.remove(dt)
+                continue
+            else:
+                for key in keys:
+                    value = row.get(key)
+                    data_flat[key].append(value)
+        # index should align with keys values.
+        datetimes = notrejected
         logger.debug("flattened in %s", datetime.now() - timer_start)
 
         # Convert values to an appropriate Numpy array type, if requested.
