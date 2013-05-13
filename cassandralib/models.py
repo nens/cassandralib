@@ -96,7 +96,7 @@ class CassandraDataStore(object):
         return self._batches[column_family]
 
     def read(self, column_family, sensor_id, start, end, params=[],
-             convert_values_to=None):
+             convert_values_to=None, ignore_rejected=None):
         if start:
             assert start.tzinfo is not None, \
                 "Start datetime must be timezone aware"
@@ -171,6 +171,8 @@ class CassandraDataStore(object):
             row = data[dt]
             for key in keys:
                 value = row.get(key)
+                if ignore_rejected and key == 'flag' and value == 6:
+                    logger.debug('flagging')
                 data_flat[key].append(value)
         logger.debug("flattened in %s", datetime.now() - timer_start)
 
