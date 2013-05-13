@@ -1,12 +1,14 @@
 # (c) Nelen & Schuurmans.  MIT licensed, see LICENSE.rst.
-from __future__ import unicode_literals
-from dateutil.relativedelta import relativedelta
-from datetime import datetime
-from pycassa.cassandra.ttypes import NotFoundException
 
+from __future__ import unicode_literals
+
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import logging
-import pandas as pd
+
+from pycassa.cassandra.ttypes import NotFoundException
 import numpy as np
+import pandas as pd
 import pycassa
 import pytz
 
@@ -60,6 +62,7 @@ def bucket_start(timestamp, bucketformat):
             month=1, day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
+
 def strptime(dt):
     # datetime.strptime is slow. This low level alternative performs better.
     if len(dt) > 26:
@@ -84,8 +87,8 @@ class CassandraDataStore(object):
     def _get_column_family(self, column_family):
         if column_family not in self._column_families:
             self._column_families[column_family] = \
-                pycassa.ColumnFamily(self.pool, column_family, \
-                    write_consistency_level=self.write_consistency_level, \
+                pycassa.ColumnFamily(self.pool, column_family,
+                    write_consistency_level=self.write_consistency_level,
                     read_consistency_level=self.read_consistency_level)
         return self._column_families[column_family]
 
