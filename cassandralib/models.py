@@ -169,7 +169,7 @@ class CassandraDataStore(object):
         # Missing values are converted to None.
         timer_start = datetime.now()
         datetimes = sorted(data.keys())
-        notrejected = datetimes
+        notrejected = list(datetimes)
         data_flat = {key: [] for key in keys}
         for dt in datetimes:
             row = data[dt]
@@ -188,7 +188,7 @@ class CassandraDataStore(object):
         # Convert values to an appropriate Numpy array type, if requested.
         # Unknown types are kept in their current (Cassandra) form.
         timer_start = datetime.now()
-        if convert_values_to is not None and 'value' in data_flat:
+        if datetimes and convert_values_to is not None and 'value' in data_flat:
             dtype_map = {
                 'float': np.float32,
                 'integer': np.int32
