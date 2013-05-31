@@ -16,9 +16,9 @@ To build pandas, we'll need Python header files (installing it via your package 
 
 	sudo apt-get install python-dev
 
-If all is well and `git <http://git-scm.com/>`_ is present, tslib should now build smoothly::
+If all is well and `git <http://git-scm.com/>`_ is present, cassandralib should now build smoothly::
 
-	git clone https://github.com/nens/tslib.git
-	cd tslib
+	git clone https://github.com/nens/cassandralib.git
+	cd cassandralib
 	python bootstrap.py
 	bin/buildout
