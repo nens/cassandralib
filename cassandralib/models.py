@@ -18,6 +18,7 @@ COLNAME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 COLNAME_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%fZ'
 COLNAME_SEPERATOR = '_'
 MAX_COLUMNS = 2147483647
+BUFFER_SIZE = 32768  # default = 1024
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,11 @@ def bucket_start(timestamp, bucketformat):
 def strptime(dt):
     # datetime.strptime is slow. This low level alternative performs better.
     if len(dt) > 26:
-        return datetime(int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
+        return datetime(
+            int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
             int(dt[11:13]), int(dt[14:16]), int(dt[17:19]), int(dt[20:26]))
-    return datetime(int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
+    return datetime(
+        int(dt[0:4]), int(dt[5:7]), int(dt[8:10]),
         int(dt[11:13]), int(dt[14:16]), int(dt[17:19]))
 
 
@@ -87,7 +90,8 @@ class CassandraDataStore(object):
     def _get_column_family(self, column_family):
         if column_family not in self._column_families:
             self._column_families[column_family] = \
-                pycassa.ColumnFamily(self.pool, column_family,
+                pycassa.ColumnFamily(
+                    self.pool, column_family,
                     write_consistency_level=self.write_consistency_level,
                     read_consistency_level=self.read_consistency_level)
         return self._column_families[column_family]
@@ -143,25 +147,33 @@ class CassandraDataStore(object):
 
         try:
             timer_start = datetime.now()
-            result = self._get_column_family(column_family).multiget(
-                rowkeys,
+
+            # Use xget, a generator, to prevent hitting the maximum Thrift
+            # frame size with huge timeseries. More robust, but somewhat
+            # slower than multiget.
+            xget = lambda rowkey: self._get_column_family(column_family).xget(
+                rowkey,
                 column_start=col_start,
                 column_finish=col_end,
-                column_count=MAX_COLUMNS
+                column_count=MAX_COLUMNS,
+                buffer_size=BUFFER_SIZE,
             )
-            for rowkey in result:
-                for col_name in result[rowkey]:
+
+            # TODO: can't we rely on ordered column names?
+            # The current code seems rather expensive.
+            for rowkey in rowkeys:
+                for col_name, col_value in xget(rowkey):
                     bits = col_name.split(COLNAME_SEPERATOR)
                     if (len(bits) > 1):
                         dt = strptime(bits[0])
-                        key = col_name[len(bits[0]) + 1:]
+                        key = bits[1]
                         if not params or key in params:
                             if key not in keys:
                                 keys.append(key)
                             if not dt in data:
                                 data[dt] = {}
-                            data[dt][key] = result[rowkey][col_name]
-            logger.debug("multiget in %s", datetime.now() - timer_start)
+                            data[dt][key] = col_value
+            logger.debug("xget in %s", datetime.now() - timer_start)
         except NotFoundException:
             pass
 
@@ -188,7 +200,11 @@ class CassandraDataStore(object):
         # Convert values to an appropriate Numpy array type, if requested.
         # Unknown types are kept in their current (Cassandra) form.
         timer_start = datetime.now()
-        if datetimes and convert_values_to is not None and 'value' in data_flat:
+        if (
+            datetimes
+            and convert_values_to is not None
+            and 'value' in data_flat
+        ):
             dtype_map = {
                 'float': np.float32,
                 'integer': np.int32
